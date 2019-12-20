@@ -1,15 +1,15 @@
-;;;Variable global que contiene
-;;;a todos los operadores que el
-;;;evaluador permite utilizar
-(defvar *oper* '(+ - * / sin cos tan exp
-                 log expt sqrt asin acos
-                 atan car cdr setq))
-
+;;;*vars* es una variable global de tipo lista en
+;;;donde se almacenaran los nombres y valores de
+;;;variables instanciadas. Se guardan de la forma
+;;;(nombre valor).
 (defvar *vars* '())
 
 (defun append1 (lst obj)
   (append lst (list obj)))
 
+;;;check_variable/2: devuelve true si el nombre var
+;;;corresponde a una variable previamente instanciada,
+;;;es decir, que se encuentra en *vars*
 (defun check_variable (var lst)
   (if (not (null lst))
       (if (eql var (caar lst)) t
@@ -53,29 +53,22 @@
 (defmacro mk-application (func arg)
   `(eval (cons ,func ,arg)))
 
-;;;evaluate/1: es el evaluador general
-;;;de calculo lambda. Puede evaluar cualquier
-;;;variable, aplicacion o lambda abstraccion
-;;;con los operadores asignados al inicio
-(defun evaluate (term)
-  (if (is-constant term) term
-      (if (is-application term)
-          (progn (if (eql (function-of term) 'setq)
-                     (setq *vars* (append1 *vars* '((first (argument-of term)) (last (argument-of term))))))
-                 (mk-application (function-of term) (evaluate (argument-of term))))
-          (if (is-lambda term)
-              (mk-application (function-of (caddr term)) (evaluate (car (last term))))
-              (if (is-variable term) 'term)))))
-
+;;;return-value/2: devuelve el valor de una variable,
+;;;la cual debio haber sido agregada en *vars* junto con
+;;;su valor. La lista lst es *vars* y debe ser enviada
+;;;como argumento al llamar a la funcion
 (defun return-value (var lst)
   (if (not (null lst))
       (if (eql var (caar lst)) (car (last (car lst)))
-          (check_variable var (cdr lst)))))
+          (return-value var (cdr lst)))))
 
-(defun evaluate2 (term)
+;;;evaluate/1: evalua expresiones lambda, siempre y cuando
+;;;sean constantes, variables, aplicaciones o abstracciones
+;;;aplicadas. Utilizar sintaxis lisp protegiendo las expresiones
+(defun evaluate (term)
   (cond ((is-constant term) term)
         ((is-variable term) (return-value term *vars*))
         ((is-application term) (progn (if (eql (function-of term) 'setq)
                                           (setq *vars* (append1 *vars* (list (first (argument-of term)) (car (last (argument-of term))))))
-                                          (mk-application (function-of term) (evaluate2 (argument-of term))))))
-        ((is-lambda term) (mk-application (function-of (caddr term)) (evaluate2 (car (last term)))))))
+                                          (mk-application (function-of term) (mapcar 'evaluate (argument-of term))))))
+        ((is-lambda term) (mk-application (function-of (caddr term)) (evaluate (car (last term)))))))
