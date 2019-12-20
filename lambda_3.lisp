@@ -71,4 +71,4 @@
         ((is-application term) (progn (if (eql (function-of term) 'setq)
                                           (setq *vars* (append1 *vars* (list (first (argument-of term)) (car (last (argument-of term))))))
                                           (mk-application (function-of term) (mapcar 'evaluate (argument-of term))))))
-        ((is-lambda term) (mk-application (function-of (caddr term)) (evaluate (car (last term)))))))
+        ((is-lambda term) term)))
