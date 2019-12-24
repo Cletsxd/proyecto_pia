@@ -1,0 +1,393 @@
+=================================================================
+                        LAMBDA EN PROLOG
+=================================================================
+
+Recomendaciones: usar un editor de código que muestre dónde
+inician las funciones, puede ser confuso andar entre tanto
+corchete. No copiar ni ejecutar los ejemplos si no se han
+comprendido. Algunas veces, aparecerá este caracter 'v' para
+señalar alguna situación justo por debajo de él (se recomienda
+borrarlo al momento de hacer una ejecución en el intérprete de
+Prolog). Se puede tomar cualquier fragmento de código para ser
+ejecutado, bajo el riesgo de que pueda quedar corrupto. Se denota
+'?-' como la entrada de código para ejecución y '>' como la
+salida o resultado de una ejecución.
+
+Este programa es una pequeña implementación del Cálculo Lambda
+(CL) en Prolog. La idea parte de una básica visualización: listas.
+Una lista se puede ver de la siguiente forma:
+
+            [argumento1, argumento2, ..., argumentoN]
+
+El programa inicia con dos simples instrucciones (después de 
+ubicarse en el directorio fuente):
+        ?- ["lambda_new.pl"].
+        > true. % Aquí puede haber "WARNINGS", pero no es problema
+        ?- eval([new], R).
+        > R = "Running new program..." .
+
+El CL se basa en un evaluador, el cual es su punto principal.
+El evaluador se define de la siguiente forma:
+
+    1. Partiendo de que todos los átomos se devuelven igual.
+        ?- eval("atomo", R).
+        > R = "atomo".
+
+    2. Si existe alguna variable global se devuelve el valor de
+        dicha variable.
+        ?- eval(var, R).
+        > R = 2 .
+        ?- variable(var / Value).
+        > Value = 2.
+
+        En otros casos, si no existen variables globales:
+        ?- eval(var, R).
+        > R = var .
+        ?- variable(var / Value).
+        > false.
+
+    3. Si el átomo en cuestión es una función.
+        ?- eval(+, R).
+        > R = (+) .
+        ?- eval(foo, R). % Suponiendo que foo se definió antes
+        > R = [lambda, [x, y], [+, [x, y]]] .
+        ?- variable(foo / Value).
+        > Value = [lambda, [x, y], [+, [x, y]]].
+
+El evaluador no solo evalúa átomos, también funciones, y aquí es
+donde entra la "magia" de las listas.
+
+    1. Para una aplicación básica.
+        ?- ?- eval([+, [[car, [4, 5, 6]], [car, [cdr, [4, 5, 6, 7]]]]], R).
+        > R = 9 .
+
+        Donde la primera lista, contiene:
+        - [operador, [cuerpo de ejecución (2 parámetros*)]].
+        * Para este caso específico.
+        * Nótese la separación de cada parámetro dentro de la
+        lista, esto se hace con una comma (,):
+        - [+, [parámetro1, parámetro2]].
+        Y dentro de cada parámetro:
+        - [operador, [lista*]].
+        * Para este caso específico.
+        * En otros casos, puede ser solo un átomo el que esté
+        como parámetro [véase print y println].
+
+    2. Para una aplicación lógica.
+        Una aplicación lógica puede ser una operación IF, AND, OR,
+        NOT, de implicación o de equivalencia, <, >, ó =.
+        ?- eval([>, [5, 1]], R).
+        > R = true .
+        ?- eval([<, [5, 1]], R).
+        > R = false .
+        ?- eval([=, [5, 5]], R).
+        > R = true .
+        ?- eval([or, [[>, [5, 1]], [>, [1, 3]]]], R).
+        > R = true .
+        ?- eval([and, [[>, [5, 1]], [>, [1, 3]]]], R).
+        > R = false .
+        ?- eval([not, [and, [[>, [5, 1]], [>, [1, 3]]]]], R).
+        > R = true .
+        * [véase equiv e impl].
+
+        La operación IF se compone de lo siguiente:
+        - [if, [condicionante], [operación THEN], [operación ELSE]]
+        ?- eval([if, [>, [5, 1]], [print, true], [print, false]], R).
+        > true
+        > R = true .
+
+        Y también se pueden ejecutar operaciones dentro del
+        condicionante de un IF.
+        ?- eval(
+            [if, [and, [[>, [5, 1]], [<, [1, 3]]]],
+                [print, true],
+                [print, false]],
+            R).
+        > true
+        > R = true .
+        ?- eval(
+            [if, [or, [[>, [5, 1]], [<, [1, 3]]]],
+                [print, true],
+                [print, false]],
+            R).
+        > true
+        > R = true .
+        ?- eval(
+            [if, [or, [[>, [[+, [4, 1]], 1]], [<, [1, 3]]]],
+                [print, true],
+                [print, false]],
+            R).
+        > true
+        > R = true .
+
+        Observe que con el cambio de operador, los resultados son
+        diferentes.
+        ?- eval(   v                  v
+            [if, [and, [[>, [5, 1]], [>, [1, 3]]]],
+                [print, true],
+                [print, false]],
+            R).
+        > false
+        > R = false .
+        ?- eval(   v                 v
+            [if, [or, [[>, [5, 1]], [<, [1, 3]]]],
+                [print, true],
+                [print, false]],
+            R).
+        > true
+        > R = true .
+
+        Otros ejemplos.
+        ?- eval(
+            [if, [not, [>, [5, 1]]],
+                [+, [5, 1]],
+                [-, [1, 5]]],
+            R).
+        > R = -4 .
+        ?- eval(
+            [if, [>, [5, 1]],
+                [+, [5, 1]],
+                [-, [1, 5]]],
+            R).
+        > R = 6 .
+        ?- eval(
+            [if, [not, [<, [5, 1]]],
+                [+, [5, 1]],
+                [-, [1, 5]]],
+            R).
+        > R = 6 .
+        ?- eval(
+            [if, [and, [[>, [5, 1]], [>, [8, 3]]]],
+                [if, [>, [[+, [4, 5]], 3]],
+                    [print, [+, [4, 5]]],
+                    [print, [-, [5, 4]]]],
+                [print, [-, [1, 3]]]],
+            R).
+        > 9 % Print.
+        > R = 9 .
+        ?- eval(
+            [if, [not, [and, [[>, [5, 1]], [>, [8, 3]]]]],
+                [if, [>, [[+, [4, 5]], 3]],
+                    [print, [+, [4, 5]]],
+                    [print, [-, [5, 4]]]],
+                [print, [-, [1, 3]]]],
+            R).
+        > -2
+        > R = -2 .
+        ?- eval(
+            [if, [and, [[>, [5, 1]], [>, [8, 3]]]],
+                [if, [not, [>, [[+, [4, 5]], 3]]],
+                    [print, [+, [4, 5]]],
+                    [print, [-, [5, 4]]]],
+                [print, [-, [1, 3]]]],
+            R).
+        > 1
+        > R = 1 .
+    
+    3. Para la declaración de variables locales.
+        Se declaran variables locales con el operador let. Y se
+        define como sigue:
+        - [let, [[variable1, valor1*], ..., [variableN, valorN*]], [funciones anidadas]]
+        ?- eval([let, [[x, 3], [y, 4], [z, 5]], [+, [[-, [y, x]], z]]], R).
+        > R = 6 .
+
+        * Hasta aquí solo se pueden poner valores numéricos en la
+        parte de valores, más adelante, con setq, se podrá observar
+        cómo esos valores se pueden tomar a partir de una
+        variable global.
+
+        Otro ejemplo:
+        ?- eval([let, [[x, 3], [y, 4], [z, [+, [10, 1]]]], [+, [[-, [y, x]], z]]], R).
+        > R = 12 .
+
+    4. Para una abstracción lambda con parámetros.
+        Una abstracción lambda se compone de lo siguiente:
+        - [lambda, [parámetros], [cuerpo], [valores de parámetros]]
+        ?- eval([lambda, [x, y], [+, [[car, x], [car, y]]], [[1, 2, 3, 4], [3, 4, 5]]], R).
+        > R = 4 .
+
+        También se pueden declarar variables locales para ser
+        evaluadas dentro de una abstracción lambda.
+        ?- eval([let, [[a, 4], [b, 5]], [lambda, [z, w], [+, [z, w, 1]], [a, b]]], R).
+        > R = 10 .
+    
+    5. Para una abstracción lambda sin parámetros.
+        Una función anónima* es una abstracción lambda sin valores
+        para los parámetros.
+        - [lambda, [parámetros], [cuerpo]]
+        ?- eval([lambda, [x, y], [+, [x, y]]], R).
+        R = [lambda, [x, y], [+, [x, y]]] .
+
+        * Una función anónima sí se puede ejecutar. La
+        siguiente sección muestra cómo.
+
+    6. Para la declaración de variables y funciones globales, y su
+    ejecución.
+        Una declaración de variable global se hace con setq, y se ve de esta forma:
+        - [setq, [var1, value1], ..., [varN, valueN]]
+        ?- eval([setq, [var, 5]], R).
+        > R = 5 .
+
+        Y se pueden visualizar.
+        ?- variable(var / Value).
+        > Value = 5.
+        ?- eval([setq, [var2, 6], [var3, [+, [1, 3]]]], R).
+        > R = 6 .
+        ?- variable(Vars).
+        > Vars = var3/4 ;
+        > Vars = var2/6 ;
+        > Vars = var/5.
+
+        Un nuevo programa reinicia el estado de almacenamiento de
+        las variables globales.
+        ?- eval([new], R).
+        > R = "Running new program..." .
+        ?- variable(Vars).
+        > false.
+
+        Una variable global puede llamarse de diferentes formas.
+        ?- eval([setq, [x, 5], [y, 6]], R).
+        > R = 6 .
+        ?- variable(Vars).
+        > Vars = y/6 ;
+        > Vars = x/5.
+        
+        - Para aplicaciones básicas y lógicas.
+        ?- eval([+, [x, y]], R).
+        > R = 11 .
+        ?- eval([if, [<, [x, y]], [print, "Yes"], [print, "False, :c"]], R).
+        > Yes
+        > R = "Yes" .
+        ?- eval([if, [>, [x, y]], [print, "Yes"], [print, "False, :c"]], R).
+        > False, :c
+        > R = "False, :c" .
+
+        - Para aplicaciones con abstracciones lambda como parámetros y
+        dentro de la aplicación.
+        ?- eval([lambda, [var1, var2], [-, [20, [+, [var1, var2]]]], [x, y]], R).
+        > R = 9 .
+        ?- eval([lambda, [var1, var2], [-, [20, [+, [var1, var2, x, y]]]], [1, 2]], R).
+        > R = 6 .
+
+        - Para aplicaciones con let.
+        ?- eval([let, [[var1, [+, [x, y]]], [var2, 10]], [-, [var1, var2]]], R).
+        > R = 1 .
+        ?- eval([let, [[var1, [+, [x, y]]], [var2, 10]], [+, [var1, var2, x]]], R).
+        > R = 26 . % Se sugiere ejecutar un variable(Vars).
+        41 ?- eval([let, [[var1, [+, [x, y]]], [var2, 10]], [print, [var1, var2, x, y]]], R).
+        > [11,10,5,6] % Print
+        > R = [11, 10, 5, 6] .
+
+        - Para nuevas variables globales.
+        ?- eval([setq, [xy, [+, [x, y]]]], R).
+        > R = 11 .
+        ?- variable(Vars).
+        > Vars = xy/11 ;
+        > Vars = y/6 ;
+        > Vars = x/5.
+
+        Una función anónima puede ser declarada como función global.
+        ?- eval([lambda, [a, b], [+, [a, b]]], R).
+        > R = [lambda, [a, b], [+, [a, b]]] .
+        ?- eval([setq, [foo, [lambda, [a, b], [+, [a, b]]]]], R).
+        > R = [lambda, [a, b], [+, [a, b]]] .
+        ?- variable(Vars).
+        > Vars = foo/[lambda, [a, b], [+, [a, b]]] ;
+        > Vars = xy/11 ;
+        > Vars = y/6 ;
+        > Vars = x/5.
+
+        La función anónima se puede ejecutar.
+            Siempre entre corchetes, aunque solo sea un valor.
+                       vvv
+        - [función, [valores]]
+        ?- eval([foo, [1, 2]], R).
+        > R = 3 .
+        ?- eval([foo, [x, [+, [y, xy]]]], R).
+        > R = 22 .
+
+        Otro ejemplo.
+        ?- eval([setq, [mysum, [lambda, [a, b], [+, [a, b, x]]]]], R).
+        > R = [lambda, [a, b], [+, [a, b, x]]] .
+        ?- eval([mysum, [1, 2]], R).
+        > R = 8 . % ¿Por qué resulta en 8?
+        ?- variable(x / Value).
+        > Value = 5.
+        ?- eval([mysum, [x, x]], R).
+        > R = 15 .
+        ?- eval([new], R). % Recomendable
+        > R = "Running new program..." .
+
+    7. Para la declaración de funciones con defun y su ejecución.
+        Una declaración de función con defun se ve así:
+        - [defun, nombre, [parámetros], [cuerpo]]
+        ?- eval([defun, foo, [a, b], [+, [a, b]]], R).
+        > R = [lambda, [a, b], [+, [a, b]]] .
+        ?- eval(foo, R).
+        > R = [lambda, [a, b], [+, [a, b]]] .
+
+        Y su ejecución.
+        ?- eval([foo, [5, 6]], R).
+        > R = 11 .
+        ?- variable(Vars).
+        > Vars = foo/[lambda, [a, b], [+, [a, b]]].
+
+        * Con esto se evita el uso explícito de setq para funciones.
+        [véase setq y defun].
+        * Todas las funciones definidas con defun o setq, se reducen
+        a una abstracción lambda.
+
+        Otras ejecuciones.
+        - Fibonacci.
+        ?- eval(
+            [defun, fib, [n],
+                [if, [=, [0, n]],
+                    0,
+                    [fib1, [0, 1, 1, n]]]],
+            R).
+        > R = [lambda, [n], [if, [=, [0, n]], 0, [fib1, [...|...]]]] .
+
+        ?- eval(
+            [defun, fib1, [f1, f2, i, to],
+                [if, [=, [i, to]],
+                    f2,
+                    [fib1, [f2, [+, [f1, f2]], [+, [i, 1]], to]]]],
+            R).
+        > R = [lambda, [f1, f2, i, to], [if, [=, [i, to]], f2, [fib1, [...|...]]]] .
+
+        ?- eval([fib, [6]], R).
+        > R = 8 .
+        ?- eval([fib, [5]], R).
+        > R = 5 .
+        ?- eval([fib, [4]], R).
+        > R = 3 .
+        ?- eval([fib, [3]], R).
+        > R = 2 .
+        ?- eval([fib, [2]], R).
+        > R = 1 .
+        ?- eval([fib, [1]], R).
+        > R = 1 .
+        ?- eval([fib, [0]], R).
+        > R = 0 .
+
+        - Contador en reversa.
+        ?- eval(
+            [defun, count, [x],
+                [if, [>, [x, -1]],
+                    [progn,
+                        [println, x], [count, [[-, [x, 1]]]]],
+                    0]],
+            R).
+        ?- eval([count, [10]], R).
+        > 10
+        > 9
+        > 8
+        > 7
+        > 6
+        > 5
+        > 4
+        > 3
+        > 2
+        > 1
+        > 0
+        > R = 0 .

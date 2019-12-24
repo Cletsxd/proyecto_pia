@@ -30,8 +30,12 @@ oper(sin). %% Implementada.
 oper(cos). %% Implementada.
 oper(tan). %% Implementada.
 oper(print). %% Implementada.
-oper(esp(let)).
+oper(println). % Implementada.
+oper(esp(let)). %% Implementada.
 oper(esp(setq)). %% Implementada.
+oper(esp(new)). %% Implementada.
+oper(esp(defun)). %% Implementada.
+oper(esp(progn)).
 
 %%%%% Evaluadores
 %%% Átomos.
@@ -95,7 +99,7 @@ eval([setq | R], Res) :-
 %%% eval/2. eval(+List, -Result).
 %%% Devuelve el resultado del cómputo de alguna abstracción lambda.
 %%% Una abstracción lambda se compone de lo siguiente:
-%%% [lambda, [argumentos], [cuerpo], [valores para los argumentos]]
+%%% [lambda, [argumentos], [cuerpo], [valores para los argumentos (pede tenerlos o no)]]
 %%% Ejemplo de salida:
 %%% ?- eval([lambda, [x, y], [+, [[car, x], [car, y]]], [[1, 2, 3, 4], [3, 4, 5]]], R).
 %%% R = 4 .
@@ -120,9 +124,22 @@ eval([lambda | R], Res) :-
 %%% ?- eval([if, [<, [5, 1]], [print, true], [print, false]], R).
 %%% false
 %%% R = false .
-eval([if | R], Res) :-
+eval([if | [Cond | R]], Res) :-
     oper(esp(if)),
-    execute(if, R, Res).
+    eval(Cond, HR),
+    execute(if, [HR | R], Res).
+
+eval([defun | R], Res) :-
+    oper(esp(defun)),
+    execute(defun, R, Res).
+
+eval([new], Res) :-
+    oper(esp(new)),
+    execute(new, _, Res).
+
+eval([progn | RestEx], Res) :-
+    oper(esp(progn)),
+    execute(progn, RestEx, Res).
 
 %%% Lista de átomos.
 %%% eval/2. eval(+List, +List).
@@ -244,13 +261,11 @@ execute(tan, N, Res):-
 % verdadero
 % R = "verdadero" .
 %%% IF TRUE THEN
-execute(if, [Cond | [Then | [_]]], Res) :-
-    eval(Cond, R1),
-    R1 == true,
+execute(if, [true | [Then | [_]]], Res) :-
     eval(Then, Res).
 
 %%% IF FALSE ELSE
-execute(if, [_ | [_ | [Else]]], Res) :-
+execute(if, [false | [_ | [Else]]], Res) :-
     eval(Else, Res).
 
 %%% Mayor que.
@@ -292,8 +307,9 @@ execute(=, _, false).
 
 %%% NEGACIÓN.
 execute(not, OP, false) :-
-    OP == true.
-execute(not, _, true).
+    OP == true, !.
+execute(not, OP, true) :-
+    OP == false, !.
 
 %%% AND.
 execute(and, [C1 | C2], true) :-
@@ -336,16 +352,19 @@ execute(cdr, [_ | R], R).
 
 %%% Print.
 %%% execute(print, +Args, -Args).
-% Escribe y devuelve lo que tenga Args.
+% Escribe y devuelve la evaluación de Args.
 execute(print, Args, Res) :-
     eval(Args, Res),
     write(Res).
 
-execute(let, [Subs | Func], Res) :-
-    write(Subs),
-    write(Func).
-    %eval(Func, Res),
-    %execute(let, []).
+execute(println, Args, Res) :-
+    eval(Args, Res),
+    write(Res), nl.
+
+execute(let, [Subs | [Func]], Res) :-
+    div_vars_vals(Subs, Variables, Values),
+    subs_main(Variables, Func, Values, ResSub),
+    eval(ResSub, Res).
 
 %%% SETQ, para variables globales.
 %%% Ejemplo de salida:
@@ -402,6 +421,18 @@ execute(lambda, [Args |[Body | [Values]]], Res) :-
     subs_main(Args, Body, Values, R),
     eval(R, Res).
 
+execute(defun, [Name | [Vars | [Body]]], Res) :-
+    eval([setq, [Name, [lambda, Vars, Body]]], Res).
+
+execute(progn, [F | []], Res) :-
+    eval(F, Res).
+execute(progn, [F | R], Res) :-
+    eval(F, _),
+    execute(progn, R, Res).
+
+execute(new, _, "Running new program...") :-
+    retractall(variable(_/_)).
+
 %%%%% OPERACIONES AUXILIARES.
 %%% subs_main/4. subs_main(+Args, +Body, +Values, -Res).
 % Devuelve la substitución de las variables de Body por los valores declarados en Value.
@@ -444,5 +475,10 @@ substitution(Var, [Vr/Value | _], Value) :-
     Var == Vr.
 substitution(Var, [_ | R], Res) :-
     substitution(Var, R, Res).
+
+div_vars_vals([], [], []).
+div_vars_vals([[Var | [Val]] | R], [Var | ResVar], [ValEv | ResVal]) :-
+    eval(Val, ValEv),
+    div_vars_vals(R, ResVar, ResVal).
 
 :- retractall(variable(_/_)).
